@@ -33,25 +33,15 @@ void slt(int rs,int rt,int rd,int reg[]){
 	reg[rd]=reg[rs]<reg[rt];	
 }
 void sll(int rt,int rd,int shamt,int reg[]){
-	unsigned long num=reg[rt];
-	for(int i=0;i<shamt;++i)
-		num*=2;
-	reg[rd]=num;
+	reg[rd]=reg[rt]<<shamt;
 }
 void srl(int rt,int rd,int shamt,int reg[]){
 	unsigned int num=reg[rt];
-	for(int i=0;i<shamt;++i)
-		num/=2;
-	reg[rd]=num;
+	reg[rd]=num>>shamt;
 }
 void sra(int rt,int rd,int shamt,int reg[]){
-	unsigned int num=reg[rt];
-	for(int i=0;i<shamt;++i)
-		num/=2;
-	reg[rd]=num;
-	if(reg[rt]<0){
-		reg[rd]-=INT_MIN;
-	}	
+	int num=reg[rt];
+	reg[rd]=num>>shamt;	
 }
 void mult(int rs,int rt,int* HI,int* LO,int reg[],FILE* snap){
 	int s,t;
@@ -68,13 +58,15 @@ void mult(int rs,int rt,int* HI,int* LO,int reg[],FILE* snap){
 	//std::cout<<reg[rs]<<" "<<reg[rt]<<"\n";
 	//std::cout<<numRs<<" "<<numRt<<"\n";
 	unsigned long long num=numRs*numRt;
-	long hi=num/4294967296;
-	long lo=num%4294967296;
+	long hi=num>>32;
+	long lo=num<<32>>32;
 	//std::cout<<num<<"\n";
-	if(*HI!=hi)
-		fprintf(snap,"$HI: 0x%08X\n",hi);
-	if(*LO!=lo)
-		fprintf(snap,"$LO: 0x%08X\n",lo);	
+	int Hi=hi;
+ int Lo=lo;
+	if(*HI!=Hi)
+		fprintf(snap,"$HI: 0x%08X\n",Hi);
+	if(*LO!=Lo)
+		fprintf(snap,"$LO: 0x%08X\n",Lo);	
 	*HI=hi;
 	*LO=lo;	
 }
@@ -84,13 +76,15 @@ void multu(int rs,int rt,int* HI,int* LO,int reg[],FILE* snap){
 	//std::cout<<reg[rs]<<" "<<reg[rt]<<"\n";
 	//std::cout<<numRs<<" "<<numRt<<"\n";
 	unsigned long long num=numRs*numRt;
-	long hi=num/4294967296;
-	long lo=num%4294967296;
+	long hi=num>>32;
+	long lo=num<<32>>32;
 	//std::cout<<num<<"\n";
-	if(*HI!=hi)
-		fprintf(snap,"$HI: 0x%08X\n",hi);
-	if(*LO!=lo)
-		fprintf(snap,"$LO: 0x%08X\n",lo);	
+ int Hi=hi;
+ int Lo=lo;
+	if(*HI!=Hi)
+		fprintf(snap,"$HI: 0x%08X\n",Hi);
+	if(*LO!=Lo)
+		fprintf(snap,"$LO: 0x%08X\n",Lo);	
 	*HI=hi;
 	*LO=lo;			
 }

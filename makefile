@@ -1,5 +1,5 @@
-main:main.o function.o structs.o
-	g++ -o singel_cycle main.o function.o structs.o
+make:main.o function.o structs.o
+	g++ -o single_cycle main.o function.o structs.o
   
 main.o:main.cpp
 	g++ -c main.cpp

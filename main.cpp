@@ -9,11 +9,19 @@ using namespace std;
 int main()
 {	
 	//xxd -c4 -b filename :show binary file in linux
-	ifstream input( "../testcase/iimage.bin", ios::binary );
-	ifstream dInput("../testcase/dimage.bin",ios::binary);
-    vector<short> iBuffer;
+	ifstream input( "iimage.bin", ifstream::binary );
+	if(input.fail()){
+		input.close();
+		input.open( "../testcase/iimage.bin", ifstream::binary );
+	}
+	ifstream dInput( "dimage.bin", ifstream::binary );
+	if(dInput.fail()){
+		dInput.close();
+		dInput.open( "../testcase/dimage.bin", ifstream::binary );
+	}
+    vector<int> iBuffer;
     vector<word> instruction;
-    vector<short> dBuffer;
+    vector<int> dBuffer;
     int memory[1024];
     int reg[32]={0};
     int PC,inum=0,dnum=0;
@@ -26,7 +34,7 @@ int main()
 	char in;
 	input.get(in);
     while(!input.eof()){
-    	iBuffer.push_back((short)in);
+    	iBuffer.push_back((int)in);
 		input.get(in);
 	}
 	input.close();
@@ -36,8 +44,8 @@ int main()
 			iBuffer[i]+=256;
 	}
 	
-	PC=iBuffer[0]*65536*256+iBuffer[1]*65536+iBuffer[2]*256+iBuffer[3];
-    inum=iBuffer[4]*65536*256+iBuffer[5]*65536+iBuffer[6]*256+iBuffer[7];
+	PC=(iBuffer[0]<<24)+(iBuffer[1]<<16)+(iBuffer[2]<<8)+iBuffer[3];
+    inum=(iBuffer[4]<<24)+(iBuffer[5]<<16)+(iBuffer[6]<<8)+iBuffer[7];
     word trans;
     for(int i=8;i<iBuffer.size();i+=4){
     	trans.op=iBuffer[i]/4;
@@ -47,9 +55,10 @@ int main()
 		trans.shamt=(iBuffer[i+2]%8)*4+iBuffer[i+3]/64;
 		trans.funct=iBuffer[i+3]%64;
 		trans.immediate=iBuffer[i+2]*256+iBuffer[i+3];
-		trans.address=trans.immediate+trans.rt*65536+trans.rs*65536*32;
+		trans.address=trans.immediate+(trans.rt<<16)+(trans.rs<<21);
 		instruction.push_back(trans);
 	}
+	
 	/*
 	for(int i=0;i<instruction.size();++i)
         cout<<i<<" :"<<instruction[i].op<<" "<<instruction[i].rs<<" "<<instruction[i].rt<<" "<<instruction[i].rd<<" "<<instruction[i].shamt<<" "<<instruction[i].funct<<" "<<instruction[i].immediate<<" "<<instruction[i].address<<" "<<"\n";
@@ -58,7 +67,7 @@ int main()
 	
 	dInput.get(in);
     while(!dInput.eof()){
-    	dBuffer.push_back((short)in);
+    	dBuffer.push_back((int)in);
 		dInput.get(in);
 	}
 	dInput.close();
@@ -67,8 +76,8 @@ int main()
 			dBuffer[i]+=256;
 	}
 	
-	reg[29]=dBuffer[0]*65536*256+dBuffer[1]*65536+dBuffer[2]*256+dBuffer[3];
-    dnum=dBuffer[4]*65536*256+dBuffer[5]*65536+dBuffer[6]*256+dBuffer[7];
+	reg[29]=(dBuffer[0]<<24)+(dBuffer[1]<<16)+(dBuffer[2]<<8)+dBuffer[3];
+    dnum=(dBuffer[4]<<24)+(dBuffer[5]<<16)+(dBuffer[6]<<8)+dBuffer[7];
     for(int i=8,j=0;i<dBuffer.size();++i,++j){
     	memory[j]=dBuffer[i];
 	}
@@ -76,6 +85,12 @@ int main()
 	/*
 	for(int i=0;i<dBuffer.size()-8;++i)
 		cout<<memory[i]<<"\n";
+	*/
+	/*
+	reg[0]=INT_MAX;
+	reg[1]=0;
+	sll(0,1,1,reg);
+	cout<<reg[1];
 	*/
 	
 	fprintf(snap,"cycle 0\n");	
@@ -288,11 +303,15 @@ int main()
 					if(num>=32768)
 						num-=65536;
 					int target=num+reg[instruction[i].rs];
-					if(check_over(num,reg[instruction[i].rs],target))
+					if(check_over(num,reg[instruction[i].rs],target+3))
 						fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+					else{
+						if(check_over(num,reg[instruction[i].rs],target))
+							fprintf(error,"In cycle %d: Number Overflow\n",cycle);	
+					}
 					if(target+3<1024 && target>=0){
 						if(target%4==0){
-							unsigned int num=memory[target]*65536*256+memory[target+1]*65536+memory[target+2]*256+memory[target+3];
+							unsigned int num=(memory[target]<<24)+(memory[target+1]<<16)+(memory[target+2]<<8)+memory[target+3];
 							reg[instruction[i].rt]=num;
 							if(reg[instruction[i].rt]!=j)
 								fprintf(snap,"$%02d: 0x%08X\n",instruction[i].rt,reg[instruction[i].rt]);
@@ -305,6 +324,8 @@ int main()
 					else{
 						fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
 						addr_over=true;
+						if(target%4!=0)
+							fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
 					}		
 				}
 				else fprintf(error,"In cycle %d: Write $0 Error\n",cycle);
@@ -316,11 +337,15 @@ int main()
 					if(num>=32768)
 						num-=65536;
 					int target=num+reg[instruction[i].rs];
-					if(check_over(num,reg[instruction[i].rs],target))
+					if(check_over(num,reg[instruction[i].rs],target+1))
 						fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+					else{
+						if(check_over(num,reg[instruction[i].rs],target))
+							fprintf(error,"In cycle %d: Number Overflow\n",cycle);	
+					}
 					if(target+3<1024 && target>=0){
 						if(target%2==0){
-							int num=memory[target]*256+memory[target+1];
+							int num=(memory[target]<<8)+memory[target+1];
 							if(num>=32768)
 								num-=65536;
 							reg[instruction[i].rt]=num;
@@ -335,6 +360,8 @@ int main()
 					else{
 						fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
 						addr_over=true;
+						if(target%2!=0)
+							fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
 					}	
 				}
 				else fprintf(error,"In cycle %d: Write $0 Error\n",cycle);
@@ -346,11 +373,15 @@ int main()
 					if(num>=32768)
 						num-=65536;
 					int target=num+reg[instruction[i].rs];
-					if(check_over(num,reg[instruction[i].rs],target))
+					if(check_over(num,reg[instruction[i].rs],target+1))
 						fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+					else{
+						if(check_over(num,reg[instruction[i].rs],target))
+							fprintf(error,"In cycle %d: Number Overflow\n",cycle);	
+					}
 					if(target+3<1024 && target>=0){
 						if(target%2==0){
-							int num=memory[target]*256+memory[target+1];
+							int num=(memory[target]<<8)+memory[target+1];
 							reg[instruction[i].rt]=num;
 							if(reg[instruction[i].rt]!=j)
 								fprintf(snap,"$%02d: 0x%08X\n",instruction[i].rt,reg[instruction[i].rt]);
@@ -363,6 +394,8 @@ int main()
 					else{
 						fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
 						addr_over=true;
+						if(target%2!=0)
+							fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
 					}	
 				}
 				else fprintf(error,"In cycle %d: Write $0 Error\n",cycle);
@@ -419,18 +452,22 @@ int main()
 				if(swnum>=32768)
 					swnum-=65536;
 				swtarget=swnum+reg[instruction[i].rs];
-				if(check_over(swnum,reg[instruction[i].rs],swtarget))
-					fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+				if(check_over(swnum,reg[instruction[i].rs],swtarget+3))
+						fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+				else{
+					if(check_over(swnum,reg[instruction[i].rs],swtarget))
+						fprintf(error,"In cycle %d: Number Overflow\n",cycle);	
+				}
 				if(swtarget+3<1024 && swtarget>=0){
 					if(swtarget%4==0){
 						unsigned int num=reg[instruction[i].rt];
-						memory[swtarget]=num/(65536*256);
-						num%=(65536*256);
-						memory[swtarget+1]=num/65536;
-						num%=65536;
-						memory[swtarget+2]=num/256;
-						num%=256;
-						memory[swtarget+3]=num%256;
+						memory[swtarget]=num>>24;
+						num=num<<8>>8;
+						memory[swtarget+1]=num>>16;
+						num=num<<16>>16;
+						memory[swtarget+2]=num>>8;
+						num=num<<24>>24;
+						memory[swtarget+3]=num;
 					}
 					else{
 						fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
@@ -440,6 +477,8 @@ int main()
 				else{
 					fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
 					addr_over=true;
+					if(swtarget%4!=0)
+						fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
 				}
 				break;
 			case 41:	//sh
@@ -449,15 +488,19 @@ int main()
 				if(shnum>=32768)
 					shnum-=65536;
 				shtarget=shnum+reg[instruction[i].rs];
-				if(check_over(shnum,reg[instruction[i].rs],shtarget))
-					fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+				if(check_over(shnum,reg[instruction[i].rs],shtarget+1))
+						fprintf(error,"In cycle %d: Number Overflow\n",cycle);
+				else{
+					if(check_over(shnum,reg[instruction[i].rs],shtarget))
+						fprintf(error,"In cycle %d: Number Overflow\n",cycle);	
+				}
 				if(shtarget+3<1024 && shtarget>=0){
 					if(shtarget%2==0){
 						unsigned int num=reg[instruction[i].rt];
-						num%=65536;
-						memory[shtarget]=num/256;
-						num%=256;
-						memory[shtarget+1]=num%256;
+						num=num<<16>>16;
+						memory[shtarget]=num>>8;
+						num=num<<24>>24;
+						memory[shtarget+1]=num;
 					}
 					else{
 						fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
@@ -467,6 +510,8 @@ int main()
 				else{
 					fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
 					addr_over=true;
+					if(shtarget%2!=0)
+						fprintf(error,"In cycle %d: Misalignment Error\n",cycle);
 				}
 				break;
 			case 40:	//sb
@@ -480,8 +525,8 @@ int main()
 					fprintf(error,"In cycle %d: Number Overflow\n",cycle);
 				if(sbtarget+3<1024 && sbtarget>=0){
 					unsigned int num=reg[instruction[i].rt];
-					num%=256;
-					memory[sbtarget+1]=num%256;
+					num=num<<24>>24;
+					memory[sbtarget+1]=num;
 				}
 				else{
 					fprintf(error,"In cycle %d: Address Overflow\\n",cycle);
@@ -491,7 +536,7 @@ int main()
 			case 16:	//lui
 				if(instruction[i].rt!=0){
 					int j=reg[instruction[i].rt];
-					instruction[i].immediate*=65536;
+					reg[instruction[i].rt]=instruction[i].immediate<<16;
 					if(reg[instruction[i].rt]!=j)
 						fprintf(snap,"$%02d: 0x%08X\n",instruction[i].rt,reg[instruction[i].rt]);
 				}
@@ -568,9 +613,8 @@ int main()
 			case 2:		//j
 				unsigned int jnum;
 				jnum=PC;
-				jnum=jnum/(65536*4096)*(65536*4096)+4*(unsigned int)instruction[i].address;
-				if(jnum<1024)
-					PC=jnum;
+				jnum=(jnum>>28<<28)+4*(unsigned int)instruction[i].address;
+				PC=jnum;
 				break;
 			case 3:		//jal
 				int ra;
@@ -580,9 +624,8 @@ int main()
 					fprintf(snap,"$31: 0x%08X\n",reg[31]);
 				unsigned int jalnum;
 				jalnum=PC;
-				jalnum=jalnum/(65536*4096)*(65536*4096)+4*(unsigned int)instruction[i].address;
-				if(jalnum<1024)
-					PC=jalnum;
+				jalnum=(jalnum>>28<<28)+4*(unsigned int)instruction[i].address;
+				PC=jalnum;
 				break;
 			
 			case 63:
@@ -593,12 +636,17 @@ int main()
 		}
     	fprintf(snap,"PC: 0x%08X\n\n\n",PC);
 		i=(PC-init)/4;
-		if(PC<0||PC>end) break;
 		
+		/*
+		if(PC>1023){
+			break;
+		}
+		if(PC<0||PC>end) PC=init;
+		*/
 		//if(cycle==36) break;
 	}
+	
 	fclose(snap);
 	fclose(error);
     return 0;
 }
-

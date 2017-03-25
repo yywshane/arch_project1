@@ -1,6 +1,5 @@
 #include <iostream>
 #include <cstdio>
-#include <climits>
 #include "structs.h"
 bool add(int rs,int rt,int rd,int reg[]);
 void addu(int rs,int rt,int rd,int reg[]);
